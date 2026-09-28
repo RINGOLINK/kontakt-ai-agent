@@ -1,0 +1,50 @@
+# ══════════ 用户数据（绝不提交）══════════
+# ⚠️ data/ 里混着程序资源（kspc.exe）与用户数据（index.db / MERT 模型 / 缓存）
+#    ⇒ 整个 data/ 一律不提交；kspc.exe 通过 Releases 分发
+data/
+dist/
+release/
+
+# ══════════ 构建产物 ══════════
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.pdb
+*.cache
+
+# ══════════ 开发期脚本与归档 ══════════
+scripts/archive/
+build/
+tools/
+
+# ══════════ 与本项目无关的内容（误留在工作目录里）══════════
+# ⚠️ 这些不是本项目的一部分：第三方工具与另一个项目的救援资料
+reasonix-rescue/
+KSP-LanguageServer-Release-v1.1.5-release/
+KSP-Compiler-Debug-v1.1.5-release/
+ProcessMonitor/
+PROJECT_MEMORY.md
+
+# ══════════ 开发期文档（含私人路径，不发布）══════════
+docs/Agent能力评估与演进建议.md
+docs/Kontakt音色库清单.md
+docs/便携契约.md
+docs/生成的注册文件清单.md
+docs/音色地图开发晨报.md
+docs/待确认事项.md
+docs/工具规划.md
+docs/AI能力增强调研报告.md
+docs/KSP能力调研.md
+docs/Kontakt自动化控制能力评估.md
+docs/验证待办.md
+docs/archive/
+README.dev.md.bak
+
+# ══════════ 其它 ══════════
+*.log
+*.bak
+Thumbs.db
+desktop.ini
+.vscode/

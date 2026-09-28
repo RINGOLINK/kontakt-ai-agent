@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <!-- 允许在更高 major 版本的 .NET 运行时上运行（如用户只装了 .NET 10）——
+         显式声明以消除对默认 roll-forward 策略的依赖 -->
+    <RollForward>LatestMajor</RollForward>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>KontaktLibManager</AssemblyName>
+    <RootNamespace>KontaktLibManager</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Product>Kontakt AI Agent</Product>
+    <AssemblyTitle>Kontakt AI Agent</AssemblyTitle>
+    <Company>RINGOLINK</Company>
+    <Description>Kontakt library manager with a built-in AI agent</Description>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Docnet.Core" Version="2.6.0" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
+    <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="NWaves" Version="0.9.6" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.20.1" />
+    <PackageReference Include="UMAP" Version="1.0.62830" />
+    <PackageReference Include="HdbscanSharp" Version="3.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+ 
+   <!-- **强制同步 wwwroot 到输出目录** ——
+        `<None Update="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />` 在
+        「应用正在运行、WebView2 占着输出文件」时会静默跳过（实测：改了前端、编译成功，
+        但 bin\wwwroot 里还是旧文件，界面看不到新功能）。
+        这个目标在每次 Build 后无条件再拷一遍，并把版本号写进 index.html 的引用（破缓存）。 -->
+   <Target Name="ForceSyncWwwroot" AfterTargets="Build">
+     <ItemGroup>
+       <_WwwFiles Include="$(MSBuildProjectDirectory)\wwwroot\**\*" />
+     </ItemGroup>
+     <Copy SourceFiles="@(_WwwFiles)" DestinationFiles="@(_WwwFiles->'$(OutDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" ContinueOnError="true" />
+     <!-- **每次编译都刷新 index.html 里的 ?v=** ——
+          否则 WebView2 会一直用缓存的旧 app.js/style.css：
+          实测踩过「改了 app.js、编译成功、但浏览器仍执行旧代码」的坑
+          （症状：报 aiStatsNewTurn is not defined，而行号指向早已修好的旧结构）。 -->
+     <PropertyGroup>
+       <_WwwVer>$([System.DateTime]::Now.ToString("yyyyMMddHHmmss"))</_WwwVer>
+     </PropertyGroup>
+     <ItemGroup>
+       <_HtmlFile Include="$(OutDir)wwwroot\index.html" />
+     </ItemGroup>
+     <Exec Command="powershell -NoProfile -Command &quot;$p='$(OutDir)wwwroot\index.html'; $c=[IO.File]::ReadAllText($p); $c=[Text.RegularExpressions.Regex]::Replace($c,'(style\.css|app\.js)\?v=\d+','$1?v=$(_WwwVer)'); [IO.File]::WriteAllText($p,$c)&quot;" ContinueOnError="true" />
+     <Message Importance="high" Text="ForceSyncWwwroot: 已同步 $(OutDir)wwwroot（$([System.String]::Copy('@(_WwwFiles)').Split(';').Length) 个文件），版本号 $(_WwwVer)" />
+   </Target>
+ 
+    <!-- ══════════ 同步大型资源目录到输出 ══════════
+         为什么需要：`data\kspc\`（KSP 编译器，71 MB）与 `data\mert\`（MERT 模型，117 MB）
+         是【运行时资源】，不是编译产物。但应用运行时用的是输出目录下的 `data\`，
+         所以必须复制过去 —— 否则会出现「找不到编译器 / 找不到模型」（已实测踩过）。
+         用 SkipUnchangedFiles 避免每次构建都重拷这 188 MB。 -->
+    <Target Name="SyncDataResources" AfterTargets="Build">
+        <ItemGroup>
+            <DataRes Include="$(MSBuildProjectDirectory)\data\kspc\**\*.*" />
+            <DataRes Include="$(MSBuildProjectDirectory)\data\mert\**\*.*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(DataRes)" DestinationFiles="@(DataRes->'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" ContinueOnError="true" />
+        <Message Importance="high" Text="SyncDataResources: 已同步 kspc / mert 资源（跳过未变更的）" />
+    </Target>
+</Project>

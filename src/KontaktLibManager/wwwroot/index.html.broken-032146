@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kontakt 音色库管理器</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <!-- ══════════ 固定顶栏（不随内容滚动）══════════ -->
+    <header class="topbar">
+        <div class="brand">
+            <span class="logo">◈</span>
+            <div>
+                <h1 id="pageTitle">Kontakt 音色库管理器</h1>
+                <p class="sub" id="rootPath">读取配置中…</p>
+            </div>
+        </div>
+
+        <nav class="tabs" id="tabs">
+            <button class="tab active" data-tab="home">概览</button>
+            <button class="tab" data-tab="libraries">音色库列表</button>
+            <button class="tab" data-tab="instruments">乐器中心</button>
+            <button class="tab" data-tab="chat">问问AI</button>
+            <button class="tab" data-tab="health">健康检查</button>
+            <button class="tab" data-tab="maintain">维护</button>
+        </nav>
+
+        <div class="actions">
+            <span class="scan-state" id="scanState"></span>
+            <button id="btnBack" class="btn" hidden>← 返回</button>
+            <button id="btnSettings" class="btn">⚙ 设置</button>
+        </div>
+    </header>
+
+    <section class="progress-wrap" id="progressWrap" hidden>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText"></div>
+    </section>
+
+    <!-- ══════════ 固定框架，滚动都在内部容器 ══════════ -->
+    <main class="app-main">
+
+        <!-- ① 概览 -->
+        <section id="tab-home" class="tab-page">
+            <div class="page-scroll">
+                <div id="compatBanner" class="banner" hidden></div>
+                <div id="emptyHome" class="empty" hidden>
+                    <h2>尚未建立索引</h2>
+                    <p>点击右上角「⚙ 设置」，添加音色库路径后点「开始扫描」。</p>
+                </div>
+                <div id="homeContent" hidden>
+                    <section class="metrics" id="homeCards">
+                        <div class="metric" title="点击查看已入库的库"><span class="k">音色库总数</span><span class="v" id="statLibs">–</span><span class="hint" id="statRoots"></span></div>
+                        <div class="metric" title="点击筛选"><span class="k">已入库</span><span class="v" id="statRegistered">–</span></div>
+                        <div class="metric" title="点击筛选"><span class="k">记录不完整</span><span class="v" id="statIncomplete">–</span><span class="hint">缺 Service Center 记录</span></div>
+                        <div class="metric" title="点击筛选"><span class="k">未入库</span><span class="v" id="statMissing">–</span></div>
+                        <div class="metric" title="点击筛选"><span class="k">路径失效/部分</span><span class="v" id="statMismatch">–</span></div>
+                        <div class="metric" title="点击筛选"><span class="k">非标准库</span><span class="v" id="statNonstd">–</span></div>
+                    </section>
+
+                    <section class="metrics metrics-4">
+                        <div class="metric"><span class="k">总占用</span><span class="v" id="statSize">–</span></div>
+                        <div class="metric"><span class="k">文件数</span><span class="v" id="statFiles">–</span></div>
+                        <div class="metric"><span class="k">乐器预设</span><span class="v" id="statInst">–</span><span class="hint" id="statInstHint"></span></div>
+                        <div class="metric"><span class="k">杂质文件</span><span class="v" id="statJunk">–</span><span class="hint" id="statJunkHint"></span></div>
+                    </section>
+
+                    <div class="home-grid">
+                        <section class="panel">
+                            <div class="panel-head">
+                                <h2>分类占比</h2>
+                                <span class="meta" id="scanMeta"></span>
+                            </div>
+                            <div class="bars" id="catBars"></div>
+                        </section>
+                        <section class="panel">
+                            <div class="panel-head">
+                                <h2>占用 Top 16</h2>
+                                <span class="meta">点击查看该库</span>
+                            </div>
+                            <div class="top-list" id="topLibs"></div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ② 音色库列表（只有表格容器滚动）-->
+        <section id="tab-libraries" class="tab-page" hidden>
+            <div class="panel flex-fill">
+                <div class="panel-head">
+                    <h2>音色库列表</h2>
+                    <div class="filters">
+                        <input type="search" id="filterText" placeholder="按名称 / 分类筛选…" />
+                        <select id="filterCat"><option value="">全部分类</option></select>
+                        <select id="filterReg">
+                            <option value="">全部入库状态</option>
+                            <option value="registered">已入库</option>
+                            <option value="incomplete">记录不完整</option>
+                            <option value="pending-manager">待库管理器保存</option>
+                            <option value="missing">未入库</option>
+                            <option value="path-mismatch">路径失效</option>
+                            <option value="partial">部分入库</option>
+                            <option value="non-standard">非标准库</option>
+                        </select>
+                        <select id="libTagFilter" title="按自定义标签筛选"><option value="">全部标签</option></select>
+                        <select id="sortBy">
+                            <option value="name">按名称</option>
+                            <option value="size">按占用</option>
+                            <option value="nki">按乐器数</option>
+                            <option value="manuals">按说明书数</option>
+                            <option value="junk">按杂质数</option>
+                            <option value="required">按版本要求</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table id="libTable">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort="name">音色库</th>
+                                <th>标签</th>
+                                <th class="sortable" data-sort="category">分类</th>
+                                <th class="sortable num" data-sort="size">占用</th>
+                                <th class="sortable num" data-sort="nki">NKI</th>
+                                <th class="sortable" data-sort="required">版本要求</th>
+                                <th>入库状态</th>
+                                <th class="sortable num" data-sort="manuals">说明书</th>
+                                <th class="sortable num" data-sort="junk">杂质</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="libBody"></tbody>
+                    </table>
+                </div>
+                <div class="table-foot" id="tableFoot"></div>
+            </div>
+        </section>
+
+        <!-- ③ 乐器中心 -->
+        <section id="tab-instruments" class="tab-page" hidden>
+            <div class="inst-layout">
+                <aside class="inst-panel inst-tree">
+                    <div class="inst-panel-head">分类 / 音色库</div>
+                    <div class="inst-tree-body" id="instTree"></div>
+                </aside>
+
+                <div class="inst-main">
+                    <div class="inst-toolbar">
+                        <input type="search" id="instSearch" placeholder="搜索 8,099 个乐器…（空格分隔多关键词）" />
+                        <select id="instKind">
+                            <option value="">全部类型</option>
+                            <option value="nki">NKI 乐器</option>
+                            <option value="nkm">NKM 多轨</option>
+                        <option value="__fav__">★ 我的收藏</option></select>
+                        <select id="instArt">
+                            <option value="">全部演奏法</option>
+                            <option value="基础音色">基础音色</option>
+                            <option value="键位切换">键位切换</option>
+                            <option value="连奏">连奏</option>
+                            <option value="长音">长音</option>
+                            <option value="短音">短音</option>
+                            <option value="颤音/震音">颤音/震音</option>
+                            <option value="拨弦/弹拨">拨弦/弹拨</option>
+                            <option value="循环乐句">循环乐句</option>
+                            <option value="打击/单音">打击/单音</option>
+                            <option value="效果/氛围">效果/氛围</option>
+                            <option value="多轨合奏">多轨合奏</option>
+                        </select>
+                        <select id="instSort">
+                            <option value="name">按名称</option>
+                            <option value="library">按库</option>
+                            <option value="size">按大小</option>
+                            <option value="page">按路径</option>
+                        </select>
+                    </div>
+                    <div class="inst-list" id="instList"></div>
+                    <div class="inst-pager" id="instPager">
+                        <span id="instFoot">输入关键词开始搜索</span>
+                        <div class="pager-pages" id="instPages"></div>
+                    </div>
+                </div>
+
+                <aside class="inst-panel inst-detail">
+                    <div class="inst-panel-head">详情</div>
+                    <div class="inst-detail-body" id="instDetail">
+                        <div class="hint-row">从左侧选择一个乐器查看详情</div>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <!-- ⑤ 维护：健康检查 / 杂质清理 / 导出 -->
+        <section id="tab-maintain" class="tab-page" hidden>
+            <div class="page-scroll">
+                <div class="maintain-grid">
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h2>重复内容检测</h2>
+                            <div class="filters">
+                                <button class="btn small" id="btnDupSimilar">检查库关系</button>
+                                <button class="btn small primary" id="btnDupScan">扫描重复大文件</button>
+                            </div>
+                        </div>
+                        <div class="hint-row" style="padding:8px 16px">
+                            <b>库关系</b>：按 NKI 名称集合判定两库关系，分「完全重复 / 完整包含 / 版本升级」三种常见情形并给出操作建议。<br>
+                            <b>重复大文件</b>：按内容指纹找出完全相同的文件（默认 ≥5 MB）。检测只读，不会删除任何文件。
+                        </div>
+                        <div id="dupResult" class="dup-box"><div class="hint-row">点上方按钮开始检测</div></div>
+                    </section>
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h2>入库快照与回滚</h2>
+                            <div class="filters">
+                                <button class="btn small" id="btnSnapReload">刷新</button>
+                                <button class="btn small primary" id="btnSnapCapture">创建快照</button>
+                            </div>
+                        </div>
+                        <div class="hint-row" style="padding:8px 16px">
+                            快照记录当前<b>注册表三视图</b>（HKLM 64/32 位 + HKCU）与<b>便携版配置</b>（Settings.cfg / LibraryHints.xml）。<br>
+                            回滚会先为当前状态<b>自动存一份快照</b>，所以回滚本身也可撤销；只写回快照里记录过的键值，不删除其他内容。
+                        </div>
+                        <div id="snapList" class="snap-list"></div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <!-- ③.5 健康检查 -->
+        <section id="tab-health" class="tab-page" hidden>
+            <div class="page-scroll">
+                <div class="home-grid" style="flex:0 0 auto">
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h2>健康检查</h2>
+                            <div class="filters"><button class="btn small" id="btnHealth">重新检查</button>
+                            <button class="btn small primary" id="btnHealthFixJunk" title="把全部杂质文件删到回收站（可恢复）">一键清理杂质</button>
+                            <button class="btn small primary" id="btnHealthFixCover" title="为缺封面的库重新尝试提取（.nicnt 内嵌横幅 / 目录里的封面图）">补全封面</button></div>
+                        </div>
+                        <div id="healthBox" class="health-box"></div>
+                    </section>
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h2>导出库清单</h2>
+                        </div>
+                        <div class="export-box">
+                            <div class="hint-row">
+                                把当前索引导出为表格，含分类、占用、版本要求、入库状态、说明书与杂质数量。<br>
+                                CSV 带 BOM，Excel 可直接打开且中文不乱码；Markdown 适合归档或贴进文档。
+                            </div>
+                            <div class="filters" style="padding:0 16px 16px">
+                                <button class="btn primary" id="btnExportCsv">导出 CSV</button>
+                                <button class="btn" id="btnExportMd">导出 Markdown</button>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <section class="panel flex-fill" style="min-height:320px">
+                    <div class="panel-head">
+                        <h2>杂质清理</h2>
+                        <div class="filters">
+                            <span class="meta" id="junkSummary"></span>
+                            <button class="btn small" id="btnJunkReload">刷新</button>
+                            <button class="btn small" id="btnJunkRecycle">全部送回收站</button>
+                            <button class="btn small" id="btnJunkDelete">永久删除</button>
+                        </div>
+                    </div>
+                    <div class="hint-row" style="padding:8px 16px">
+                        杂质 = 与音色库无关的冗余文件（.nfo / .url / .db / Thumbs.db 等）。
+                        <b>送回收站可撤销</b>；永久删除不可恢复。工具不会碰任何 .nki / .nkm / 采样 / 说明书文件。
+                    </div>
+                    <div class="junk-view">
+                        <div class="table-scroll">
+                            <table>
+                                <thead><tr><th style="width:34px"></th><th>文件</th><th>所属音色库</th><th>类型</th><th class="num">大小</th></tr></thead>
+                                <tbody id="junkBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="pager">
+                            <span class="meta" id="junkPageInfo">—</span>
+                            <div class="filters">
+                                <button class="btn small" id="btnJunkFirst">首页</button>
+                                <button class="btn small" id="btnJunkPrev">上一页</button>
+                                <button class="btn small" id="btnJunkNext">下一页</button>
+                                <button class="btn small" id="btnJunkLast">末页</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </section>
+        <!-- 问问AI -->
+        <section id="tab-chat" class="tab-page" hidden>
+            <div class="chat-layout">
+                <!-- 左：会话管理 -->
+                <aside class="chat-side">
+                    <div class="chat-side-head">
+                        <span>会话</span>
+                        <span class="filters">
+                            <button class="btn small" id="btnChatNewCross">+ 跨库会话</button>
+                        </span>
+                    </div>
+                    <div id="chatSessions" class="chat-sessions">
+                        <div class="hint-row">正在读取会话…</div>
+                    </div>
+                </aside>
+
+                <!-- 中：对话 -->
+                <main class="chat-main">
+                    <div class="chat-head">
+                        <div class="chat-head-line">
+                            <span id="chatTitle" class="chat-title">未选择会话</span>
+                            <span id="chatModeTag" class="chat-mode-tag" hidden></span>
+                            <span class="filters">
+                                <button class="btn small" id="btnChatRename" hidden>重命名</button>
+                                <button class="btn small" id="btnChatDelete" hidden>删除会话</button>
+                            </span>
+                        </div>
+                        <div id="chatBranches" class="chat-branches"></div>
+                    </div>
+                    <div id="chatMsgs" class="chat-msgs">
+                        <div class="chat-empty">
+                            <div class="chat-empty-title">问问 AI</div>
+                            <div class="chat-empty-body">
+                                从右侧「说明书」里选一本建立知识库，然后开始提问；<br>
+                                也可以直接新建一个<b>跨库会话</b>，问「我有哪些弦乐库」这类全局问题。
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-input-wrap">
+                        <!-- 附图条（独占一行，避免把输入行挤扁）-->
+                        <div id="chatAttach" class="chat-attach" hidden>
+                            <img id="chatAttachImg" alt="附图" />
+                            <span id="chatAttachInfo" class="meta"></span>
+                            <span class="chat-attach-x" id="chatAttachDel" title="移除附图">✕</span>
+                        </div>
+                           <!-- Agent 行动确认条（行内，位于输入框上方 —— 比弹窗更贴近常见 Agent 交互）-->
+                           <div id="agentConfirm" class="agent-confirm" hidden>
+                               <div class="ac-head">
+                                   <span class="ac-ico">⚠</span>
+                                   <span class="ac-title" id="agentConfirmTitle">需要你确认</span>
+                                   <span class="ac-close" id="agentConfirmX" title="收起（等于拒绝）">✕</span>
+                               </div>
+                               <div class="ac-reason" id="agentConfirmReason"></div>
+                               <pre class="ac-body" id="agentConfirmBody"></pre>
+                               <div class="ac-acts">
+                                   <button class="btn small" id="agentConfirmDeny">拒绝</button>
+                                   <button class="btn small primary" id="agentConfirmAllow">允许执行</button>
+                               </div>
+                           </div>
+                        <!-- 思考强度（Auto = 由模型自控）-->
+                        <div class="chat-input-row">
+                            <textarea id="chatInput" rows="2" placeholder="问点什么…例如：怎么用键位切换演奏法？（Enter 发送，Shift+Enter 换行）"></textarea>
+                            <!-- 右侧列：思考强度在上，上传/发送在下 -->
+                            <div class="chat-input-actions">
+                                <div class="chat-think">
+                                    <span class="chat-think-label">思考强度</span>
+                                    <select id="chatThink" title="控制模型推理投入；Auto 表示不指定，由模型自控">
+                                        <option value="auto">Auto</option>
+                                        <option value="low">低</option>
+                                        <option value="medium">中</option>
+                                        <option value="high">高</option>
+                                    </select>
+                                </div>
+                                <div class="chat-btns">
+                            <button class="btn" id="btnChatShot" title="上传图片（也可以直接 Ctrl+V 粘贴）">🖼️</button>
+                            <input type="file" id="chatFilePick" accept="image/*" style="display:none" />
+                            <button class="btn primary" id="btnChatSend">发送</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- 右：工作区（说明书 / 知识库） -->
+                <aside class="chat-work">
+                    <div class="chat-side-tabs">
+                        <button class="cst active" data-cst="manuals">说明书</button>
+                        <button class="cst" data-cst="kb">知识库</button>
+                        <button class="cst" data-cst="mem">记忆</button>
+                    </div>
+                    <div id="cstManuals" class="cst-body">
+                        <div class="hint-row">正在读取说明书…</div>
+                    </div>
+                    <div id="cstKb" class="cst-body" hidden>
+                           <div class="kb-batch-bar">
+                               <button class="btn" id="btnKbBuildAll" title="把所有有说明书的音色库批量建成知识库（只建还没建或已过期的）">批量建立</button>
+                               <button class="btn" id="btnKbBatchCancel" hidden>取消</button>
+                           </div>
+                           <div id="kbBatchInfo" class="hint-row" hidden></div>
+                           <div id="kbList"><div class="hint-row">正在读取知识库…</div></div>
+                       </div>                     <div id="cstMem" class="cst-body" hidden>                         <div class="hint-row">正在读取记忆…</div>                     </div>
+                </aside>
+            </div>
+        </section>
+
+        <!-- ④ 设置 -->
+
+                <section class="panel">
+                    <div class="panel-head">
+                        <h2>② Kontakt 主程序</h2>
+                        <div class="filters">
+                            <button class="btn" id="btnDetectKontakt">重新检测</button>
+                            <button class="btn" id="btnAddKontakt">+ 手动添加…</button>
+                            <button class="btn" id="btnLaunchKontakt">测试启动</button>
+                            <button class="btn" id="btnClearKontakt">清除当前</button>
+                        </div>
+                    </div>
+                    <div class="hint-row">
+                        设置 Kontakt 主程序后，可读取其版本用于兼容性检查，并可一键调用 Kontakt 测试音色库。<br>
+                        注意选择 <b>Kontakt N.exe</b> 主程序（如 <code>D:\...\Kontakt 8\x64\Kontakt 8.exe</code>），
+                        <b>不要选安装包</b>（如 <code>KontaktPortable_v871.exe</code>，体积约 1GB 且无版本信息）。
+                        列表中的条目可<b>编辑路径</b>或<b>删除</b>。
+                    </div>
+                    <div id="kontaktCurrent" class="kv-box"></div>
+                    <div class="list-head">程序列表（自动检测 + 手动添加，可编辑）</div>
+                    <div id="kontaktInstalls" class="detect-list"></div>
+                    <details id="ignoredBox" class="ignored-box" hidden>
+                        <summary id="ignoredSummary">已自动忽略的安装包 / 非程序文件</summary>
+                        <div id="ignoredList" class="detect-list"></div>
+                    </details>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-head">
+                        <h2>③ 入库管理</h2>
+                        <div class="filters">
+                            <button class="btn" id="btnRefreshReg">刷新状态</button>
+                            <button class="btn primary" id="btnRegisterMissing">一键入库（未入库）</button>
+                            <button class="btn" id="btnBatchFinalize" title="把非标准库批量加入 Quick-Load，并把待处理的库批量写入便携版库列表">批量收尾</button>
+                        </div>
+                    </div>
+                    <div class="hint-row">
+                        入库 = 完整写入 Kontakt 读取的全部位置：
+                        <b>①②③ 注册表三视图</b>（HKLM 64/32 位 + HKCU）、
+                        <b>④ Service Center 记录</b> <code>&lt;键名&gt;.xml</code>、
+                        <b>⑤ 便携版库列表</b>（<code>Settings.cfg</code> + <code>LibraryHints.xml</code>）。<br>
+                        元数据取自各库自带的 <code>.nicnt</code>；无 <code>.nicnt</code> 的旧式库会回退使用
+                        <b>注册表 + LibraryHints</b> 中的信息补齐 Name/SNPID。
+                        本工具<b>不修改 .nicnt、不伪造授权字段、不绕过任何授权校验</b>。<br>
+                        便携版写入前会<b>自动备份</b>（<code>*.klm-backup-*</code>），写后校验，失败自动还原；入库时请确保 <b>Kontakt 已完全关闭</b>。
+                    </div>
+                    <div id="portableBox" class="banner" hidden></div>
+                    <div id="regList" class="reg-list"></div>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-head">
+                        <h2>④ 版本兼容检查</h2>
+                        <div class="filters"><button class="btn" id="btnRefreshCompat">重新检查</button></div>
+                    </div>
+                    <div class="hint-row">读取每个库内 NKI 头部记录的 Kontakt 引擎版本，与当前设定的 Kontakt 版本比较，提示无法加载的库。</div>
+                    <div id="compatBox"></div>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-head">
+                        <h2>⑤ AI 助手（说明书问答）</h2>
+                        <div class="filters">
+                            <button class="btn" id="btnTestAi">测试连接</button>
+                            <button class="btn primary" id="btnSaveAi">保存</button>
+                        </div>
+                    </div>
+                    <div class="hint-row">
+                        填写任意 <b>OpenAI 兼容</b>端点即可（DeepSeek / OpenAI / SenseNova / Ollama / LM Studio…）。<br>
+                        Agent 的工作方式：把说明书拆解成<b>本地知识库</b>（文字抽取 + 图片页视觉解读）→ 本地检索 → 只把相关片段交给模型 → 回答并<b>标注页码</b>，你问到的地方可直接调出<b>原页例图</b>。
+                    </div>
+                    <div class="ai-form">
+                        <label>Base URL<input id="aiBaseUrl" placeholder="https://token.sensenova.cn/v1" spellcheck="false" /></label>
+                        <label>模型<input id="aiModel" placeholder="sensenova-6.8-flash-lite" spellcheck="false" /></label>
+                        <label>API Key<input id="aiApiKey" type="password" placeholder="留空表示不修改" spellcheck="false" /></label>
+                        <label>温度<input id="aiTemperature" placeholder="0.3" spellcheck="false" /></label>
+                        <label>最大输出 tokens<input id="aiMaxTokens" placeholder="留空 = 不限制（推荐）" spellcheck="false" /></label>
+                        <label>上下文长度<input id="aiContextLength" placeholder="262144" spellcheck="false" /></label>
+                        <label>压缩阈值 %<input id="aiCompressPercent" placeholder="70" spellcheck="false" /></label>
+                        <label class="ai-check"><input type="checkbox" id="aiMultimodal" /> 该模型具备多模态（视觉）能力</label>
+                        <label class="ai-check"><input type="checkbox" id="aiAllowNetwork" /> 允许 Agent 联网搜索（默认关闭）</label>
+                        <label class="ai-check"><input type="checkbox" id="aiAllowUiControl" /> 允许 Agent 操作外部程序界面（点击/输入，每次都会确认）</label>
+                        <label class="ai-check"><input type="checkbox" id="aiAllowShell" /> 允许 Agent 执行命令 / 代码（只读白名单直通，风险操作逐条确认）</label>
+                    </div>
+                    <div id="aiTestResult" class="hint-row"></div>
+                </section>
+                   <section class="panel">
+                       <div class="panel-head">
+                           <h2>⑥ 标签管理</h2>
+                           <div class="filters">
+                               <button class="btn small" id="btnTagRefresh">刷新</button>
+                           </div>
+                       </div>
+                       <div class="hint-row">
+                           自定义标签用于跨库整理（一个库可以有多个标签）。这里可以<b>重命名</b>或<b>删除</b>标签；
+                           删除标签只解除它与音色库的关联，<b>不会动任何音色文件</b>。
+                       </div>
+                       <div id="tagManagerBox" class="tag-manager">
+                           <div class="hint-row">正在读取标签…</div>
+                       </div>
+                   </section>
+            </div>
+        </section>
+    </main>
+
+    <!-- ══════════ 封面编辑器 ══════════ -->
+    <div id="coverEditor" class="cover-editor" hidden>
+        <div class="ce-head">
+            <div class="ce-title">🎨 封面编辑器 · <span id="ceLibName">—</span></div>
+            <div class="ce-actions">
+                <button class="btn small" id="cePick">选择图片…</button>
+                <button class="btn small primary" id="ceSave">保存封面</button>
+                <button class="btn small" id="ceClose">关闭</button>
+            </div>
+        </div>
+        <div class="ce-body">
+            <div class="ce-stage">
+                <canvas id="ceCanvas" width="905" height="99"></canvas>
+                <div class="ce-stage-hint" id="ceStageHint">先点「选择图片」载入一张图；拖动可调整构图，滚轮缩放</div>
+            </div>
+            <aside class="ce-side">
+                <div class="ce-group">
+                    <label class="ce-label">构图</label>
+                    <div class="ce-row"><span class="ce-k">缩放</span>
+                        <input type="range" id="ceZoom" min="100" max="400" value="100" />
+                        <span class="ce-v" id="ceZoomVal">100%</span></div>
+                    <div class="ce-row"><button class="btn small" id="ceFit">填满画布</button>
+                        <button class="btn small" id="ceReset">重置</button></div>
+                </div>
+                <div class="ce-group">
+                    <label class="ce-label">文字（每行一个，可多行）</label>
+                    <textarea id="ceText" rows="3" placeholder="CINEMATIC&#10;STUDIO PIANO"></textarea>
+                    <div id="ceLineSizes" class="ce-lines"></div>
+                    <div class="ce-row"><span class="ce-k">行距</span>
+                        <input type="range" id="ceLineGap" min="0" max="24" value="4" />
+                        <span class="ce-v" id="ceLineGapVal">4</span></div>
+                    <div class="ce-row"><span class="ce-k">颜色</span>
+                        <input type="color" id="ceColor" value="#ffffff" />
+                        <span class="ce-k">描边</span>
+                        <input type="color" id="ceStroke" value="#000000" /></div>
+                    <div class="ce-row">
+                        <button class="btn small" id="ceAlignLeft">左对齐</button>
+                        <button class="btn small" id="ceAlignCenter">居中</button>
+                        <button class="btn small" id="ceCenterV">纵向居中</button></div>
+                    <div class="ce-note">默认<b>左对齐 + 纵向居中</b>（与原版封面一致）；在画布上<b>直接拖动文字</b>可整体移动。虚线框是文字安全区。</div>
+                </div>
+                <div class="ce-group">
+                    <label class="ce-label">说明</label>
+                    <div class="ce-note" id="ceHint"></div>
+                </div>
+            </aside>
+        </div>
+    </div>
+    <!-- ══════════ AI 问答面板 ══════════ -->
+    <div id="aiPanel" class="ai-panel" hidden>
+        <div class="ai-head">
+            <div class="ai-title">🤖 问问AI · <span id="aiLibName">—</span></div>
+            <div class="ai-actions">
+                <span id="aiKbStatus" class="meta"></span>
+                <button class="btn small" id="btnKbBuild">建立知识库</button>
+                <button class="btn small" id="btnKbDelete" title="删除该库的知识库缓存">删除缓存</button>
+                <button class="btn small" id="btnAiClear" title="清空当前对话">清空对话</button>
+                <button class="btn small" id="btnAiClose">关闭</button>
+            </div>
+        </div>
+        <div id="aiProgress" class="progress-wrap" hidden>
+            <div class="progress-bar"><div class="progress-fill" id="aiProgressFill"></div></div>
+            <div class="progress-text" id="aiProgressText"></div>
+        </div>
+        <div id="aiMessages" class="ai-messages"></div>
+        <div class="ai-input-row">
+            <textarea id="aiInput" rows="2" placeholder="问点什么…例如：怎么用键位切换演奏法？ / 这个库的麦克风位置怎么调？"></textarea>
+            <button class="btn primary" id="btnAsk">发送</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+        <div id="modal" class="modal-mask" hidden>
+            <div class="modal">
+                <h3 id="modalTitle"></h3>
+                <div class="modal-body" id="modalBody"></div>
+                <div class="modal-actions">
+                    <button class="btn" id="modalCancel">取消</button>
+                    <button class="btn primary" id="modalOk">确定</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shell 命令 / 代码执行 确认（验权）-->
+        <div id="shellConfirm" class="modal-mask" hidden>
+            <div class="modal" style="max-width:760px">
+                <h3 id="shellTitle">⚠ 需要你确认才能执行</h3>
+                <div class="modal-body">
+                    <div class="hint-row" id="shellReason" style="padding:0 0 10px"></div>
+                    <pre id="shellCmd" class="shell-cmd"></pre>
+                    <div class="hint-row" style="padding:10px 0 0">
+                        只有你点「允许」后才会执行；点「拒绝」则不会执行，AI 会收到拒绝结果。
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn" id="shellDeny">拒绝</button>
+                    <button class="btn primary" id="shellAllow">允许执行</button>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
